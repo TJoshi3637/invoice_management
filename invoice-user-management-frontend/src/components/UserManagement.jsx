@@ -1,5 +1,51 @@
 import React, { useState, useEffect } from 'react';
-import { getCurrentUser, getUsers, createUser, testBackendConnection } from '../services/api';
+import { Users, UserPlus, Search, X, Check, AlertTriangle, Loader } from 'lucide-react';
+
+// Mock data and functions to replace API imports
+const mockUsers = [
+  {
+    _id: '1',
+    name: 'John Doe',
+    email: 'john.doe@example.com',
+    role: 'ADMIN',
+    groupId: 'G001',
+    createdAt: '2025-04-01T12:00:00Z'
+  },
+  {
+    _id: '2',
+    name: 'Jane Smith',
+    email: 'jane.smith@example.com',
+    role: 'USER',
+    groupId: 'G002',
+    createdAt: '2025-04-02T12:00:00Z'
+  },
+  {
+    _id: '3',
+    name: 'Robert Johnson',
+    email: 'robert.johnson@example.com',
+    role: 'UNIT_MANAGER',
+    groupId: 'G001',
+    createdAt: '2025-04-03T12:00:00Z'
+  },
+  {
+    _id: '4',
+    name: 'Emily Davis',
+    email: 'emily.davis@example.com',
+    role: 'SUPER_ADMIN',
+    groupId: 'G003',
+    createdAt: '2025-04-04T12:00:00Z'
+  }
+];
+
+// Mock functions to simulate API calls
+const testBackendConnection = () => Promise.resolve(true);
+const getCurrentUser = () => Promise.resolve(mockUsers[0]);
+const getUsers = () => Promise.resolve(mockUsers);
+const createUser = (userData) => Promise.resolve({
+  ...userData,
+  _id: Math.random().toString(36).substring(2, 15),
+  createdAt: new Date().toISOString()
+});
 
 const UserManagement = () => {
     const [users, setUsers] = useState([]);
@@ -9,6 +55,7 @@ const UserManagement = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isBackendConnected, setIsBackendConnected] = useState(false);
+    const [showCreateForm, setShowCreateForm] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -49,15 +96,11 @@ const UserManagement = () => {
             setError(null);
 
             // First fetch current user
-            console.log('Fetching current user...');
             const userData = await getCurrentUser();
-            console.log('Current user:', userData);
             setCurrentUser(userData);
 
             // Then fetch all users
-            console.log('Fetching all users...');
             const allUsers = await getUsers();
-            console.log('All users:', allUsers);
             setUsers(allUsers);
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -82,7 +125,8 @@ const UserManagement = () => {
         setIsSubmitting(true);
 
         try {
-            const token = localStorage.getItem('token');
+            // Simulate token check
+            const token = true; // In a real app this would be localStorage.getItem('token')
             if (!token) {
                 throw new Error('No authentication token found. Please login first.');
             }
@@ -102,17 +146,36 @@ const UserManagement = () => {
                 groupId: 'G001',
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
             });
+            
+            // Close the form after successful submission after 2 seconds
+            setTimeout(() => {
+                setShowCreateForm(false);
+                setFormSuccess('');
+            }, 2000);
         } catch (err) {
             console.error('Error creating user:', err);
-            setFormError(err.response?.data?.msg || err.message || 'Failed to create user');
+            setFormError(err.message || 'Failed to create user');
         } finally {
             setIsSubmitting(false);
         }
     };
 
+    const resetForm = () => {
+        setFormData({
+            name: '',
+            email: '',
+            password: '',
+            role: 'USER',
+            groupId: 'G001',
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        });
+        setFormError('');
+        setFormSuccess('');
+    };
+
     const filteredUsers = users.filter(user => {
-        const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.email.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            user.email?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesType = !selectedUserType || user.role === selectedUserType;
         return matchesSearch && matchesType;
     });
@@ -134,8 +197,9 @@ const UserManagement = () => {
 
     if (!isBackendConnected) {
         return (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                <div className="text-red-600">
+            <div className="rounded-lg bg-red-50 border border-red-200 p-6 flex items-center space-x-4">
+                <AlertTriangle className="h-6 w-6 text-red-500" />
+                <div className="text-red-600 font-medium">
                     {error || 'Backend server is not running. Please start the server and try again.'}
                 </div>
             </div>
@@ -145,174 +209,271 @@ const UserManagement = () => {
     if (loading) {
         return (
             <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                <div className="flex flex-col items-center">
+                    <Loader className="h-12 w-12 text-blue-500 animate-spin" />
+                    <p className="mt-4 text-gray-500">Loading user data...</p>
+                </div>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                <div className="text-red-600">{error}</div>
+            <div className="rounded-lg bg-red-50 border border-red-200 p-6 flex items-center space-x-4">
+                <AlertTriangle className="h-6 w-6 text-red-500" />
+                <div className="text-red-600 font-medium">{error}</div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                    <input
-                        type="text"
-                        placeholder="Search users..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
-                </div>
-                <select
-                    value={selectedUserType}
-                    onChange={(e) => setSelectedUserType(e.target.value)}
-                    className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="flex justify-between items-center">
+                <h1 className="text-2xl font-bold text-gray-900 flex items-center">
+                    <Users className="mr-2 h-6 w-6 text-blue-500" />
+                    User Management
+                </h1>
+                <button
+                    onClick={() => setShowCreateForm(!showCreateForm)}
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
-                    <option value="">All User Types</option>
-                    <option value="SUPER_ADMIN">Super Admin</option>
-                    <option value="ADMIN">Admin</option>
-                    <option value="UNIT_MANAGER">Unit Manager</option>
-                    <option value="USER">User</option>
-                </select>
+                    {showCreateForm ? (
+                        <>
+                            <X className="mr-2 h-4 w-4" />
+                            Cancel
+                        </>
+                    ) : (
+                        <>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Add New User
+                        </>
+                    )}
+                </button>
             </div>
 
-            <div className="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden md:max-w-2xl">
-                <div className="p-8">
-                    <div className="uppercase tracking-wide text-sm text-indigo-500 font-semibold">Create New User</div>
-                    <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
-                        {formError && (
-                            <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                                <div className="text-red-600 text-sm">{formError}</div>
+            {showCreateForm && (
+                <div className="bg-white shadow-lg rounded-lg overflow-hidden border border-gray-200">
+                    <div className="bg-blue-50 px-6 py-4 border-b border-gray-200">
+                        <h2 className="text-lg font-medium text-blue-800 flex items-center">
+                            <UserPlus className="mr-2 h-5 w-5" />
+                            Create New User
+                        </h2>
+                    </div>
+                    <div className="p-6">
+                        <div className="space-y-6">
+                            {formError && (
+                                <div className="rounded-md bg-red-50 p-4 border border-red-200 flex items-start">
+                                    <AlertTriangle className="h-5 w-5 text-red-400 mt-0.5 mr-3" />
+                                    <div className="text-sm text-red-700">{formError}</div>
+                                </div>
+                            )}
+                            {formSuccess && (
+                                <div className="rounded-md bg-green-50 p-4 border border-green-200 flex items-start">
+                                    <Check className="h-5 w-5 text-green-400 mt-0.5 mr-3" />
+                                    <div className="text-sm text-green-700">{formSuccess}</div>
+                                </div>
+                            )}
+                            
+                            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        required
+                                        placeholder="Enter user's full name"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        value={formData.name}
+                                        onChange={handleChange}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                    <input
+                                        type="email"
+                                        name="email"
+                                        required
+                                        placeholder="email@example.com"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        value={formData.email}
+                                        onChange={handleChange}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                                    <input
+                                        type="password"
+                                        name="password"
+                                        required
+                                        placeholder="Enter secure password"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        value={formData.password}
+                                        onChange={handleChange}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                                    <select
+                                        name="role"
+                                        required
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        value={formData.role}
+                                        onChange={handleChange}
+                                    >
+                                        <option value="USER">User</option>
+                                        <option value="UNIT_MANAGER">Unit Manager</option>
+                                        <option value="ADMIN">Admin</option>
+                                        <option value="SUPER_ADMIN">Super Admin</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Group ID</label>
+                                    <input
+                                        type="text"
+                                        name="groupId"
+                                        required
+                                        placeholder="Enter group identifier"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        value={formData.groupId}
+                                        onChange={handleChange}
+                                    />
+                                </div>
                             </div>
-                        )}
-                        {formSuccess && (
-                            <div className="bg-green-50 border border-green-200 rounded-md p-4">
-                                <div className="text-green-600 text-sm">{formSuccess}</div>
+                            
+                            <div className="flex justify-end space-x-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={resetForm}
+                                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                >
+                                    Reset
+                                </button>
+                                <button
+                                    type="submit"
+                                    onClick={handleSubmit}
+                                    disabled={isSubmitting}
+                                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center"
+                                >
+                                    {isSubmitting ? (
+                                        <>
+                                            <Loader className="animate-spin h-4 w-4 mr-2" />
+                                            Creating...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Check className="h-4 w-4 mr-2" />
+                                            Create User
+                                        </>
+                                    )}
+                                </button>
                             </div>
-                        )}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Name</label>
-                            <input
-                                type="text"
-                                name="name"
-                                required
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                value={formData.name}
-                                onChange={handleChange}
-                            />
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Email</label>
-                            <input
-                                type="email"
-                                name="email"
-                                required
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                value={formData.email}
-                                onChange={handleChange}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Password</label>
-                            <input
-                                type="password"
-                                name="password"
-                                required
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                value={formData.password}
-                                onChange={handleChange}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Role</label>
-                            <select
-                                name="role"
-                                required
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                value={formData.role}
-                                onChange={handleChange}
-                            >
-                                <option value="USER">User</option>
-                                <option value="UNIT MANAGER">Unit Manager</option>
-                                <option value="ADMIN">Admin</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Group ID</label>
-                            <input
-                                type="text"
-                                name="groupId"
-                                required
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                value={formData.groupId}
-                                onChange={handleChange}
-                            />
-                        </div>
-                        <div>
-                            <button
-                                type="submit"
-                                disabled={isSubmitting}
-                                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                            >
-                                {isSubmitting ? (
-                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                                ) : (
-                                    'Create User'
-                                )}
-                            </button>
-                        </div>
-                    </form>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            <div className="bg-white shadow-sm rounded-lg overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Group</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {filteredUsers.map((user) => (
-                            <tr key={user._id} className="hover:bg-gray-50">
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm text-gray-500">{user.email}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
-                                        {user.role}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm text-gray-500">{user.groupId || '-'}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm text-gray-500">
-                                        {new Date(user.createdAt).toLocaleDateString()}
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+            <div className="bg-white shadow rounded-lg p-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                    <div className="relative flex-1 w-full">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Search className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Search users by name or email..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                    </div>
+                    <select
+                        value={selectedUserType}
+                        onChange={(e) => setSelectedUserType(e.target.value)}
+                        className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                        <option value="">All User Types</option>
+                        <option value="SUPER_ADMIN">Super Admin</option>
+                        <option value="ADMIN">Admin</option>
+                        <option value="UNIT_MANAGER">Unit Manager</option>
+                        <option value="USER">User</option>
+                    </select>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <div className="align-middle inline-block min-w-full">
+                        <div className="overflow-hidden border border-gray-200 sm:rounded-lg">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Name
+                                        </th>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Email
+                                        </th>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Role
+                                        </th>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Group
+                                        </th>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Created At
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {filteredUsers.length > 0 ? (
+                                        filteredUsers.map((user) => (
+                                            <tr key={user._id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex items-center">
+                                                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
+                                                            <span className="text-sm font-medium text-gray-700">
+                                                                {user.name ? user.name.charAt(0).toUpperCase() : '?'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="ml-4">
+                                                            <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm text-gray-500">{user.email}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
+                                                        {user.role}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm text-gray-500">{user.groupId || '-'}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm text-gray-500">
+                                                        {new Date(user.createdAt).toLocaleDateString()}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="5" className="px-6 py-10 text-center text-sm text-gray-500">
+                                                No users match your search criteria. Try adjusting your filters.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-4 text-sm text-gray-500 text-right">
+                    Showing {filteredUsers.length} of {users.length} users
+                </div>
             </div>
         </div>
     );
 };
 
-export default UserManagement; 
+export default UserManagement;

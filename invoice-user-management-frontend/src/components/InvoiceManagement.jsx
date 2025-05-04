@@ -29,7 +29,6 @@ export default function InvoiceManagement() {
             try {
                 const response = await api.get('/auth/current-user');
                 setCurrentUser(response.data);
-                await fetchInvoices();
             } catch (error) {
                 console.error('Error fetching current user:', error);
                 setError('Error loading user data. Please try again.');
@@ -40,25 +39,137 @@ export default function InvoiceManagement() {
         fetchCurrentUser();
     }, []);
 
+    // Separate useEffect for fetching invoices based on page changes
+    useEffect(() => {
+        if (currentUser) {
+            fetchInvoices(page);
+        }
+    }, [page, currentUser]);
+
     const fetchInvoices = async (pageNum = 1) => {
         try {
+            setIsLoading(true);
             const response = await api.get(`/invoices?page=${pageNum}&limit=10`);
-            setInvoices(response.data.invoices);
-            setTotalPages(response.data.totalPages);
+            
+            // Handle different response formats
+            if (Array.isArray(response.data)) {
+                // If response is an array, set it directly
+                setInvoices(response.data);
+                setTotalPages(1); // Default to 1 if no pagination info
+            } else if (response.data && response.data.invoices) {
+                // If response is an object with invoices property
+                setInvoices(response.data.invoices);
+                setTotalPages(response.data.totalPages || 1);
+            } else if (response.data && Array.isArray(response.data.data)) {
+                // Handle another common API format
+                setInvoices(response.data.data);
+                setTotalPages(response.data.meta?.total_pages || 1);
+            } else {
+                // Fallback for unknown formats
+                console.log('API Response Format:', response.data);
+                setInvoices([]);
+                setError('No invoices found or unknown response format');
+            }
         } catch (error) {
             console.error('Error fetching invoices:', error);
             setError('Error loading invoices. Please try again.');
+            setInvoices([]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Add debounce for search
+    useEffect(() => {
+        const delaySearch = setTimeout(() => {
+            if (searchTerm) {
+                handleSearchInvoices();
+            } else if (currentUser) {
+                fetchInvoices(page);
+            }
+        }, 500);
+        
+        return () => clearTimeout(delaySearch);
+    }, [searchTerm, currentUser]);
+
+    const handleSearchInvoices = async () => {
+        try {
+            setIsLoading(true);
+            const response = await api.get(`/invoices/search?term=${searchTerm}&page=${page}&limit=10`);
+            
+            // Handle different response formats
+            if (Array.isArray(response.data)) {
+                // If response is an array, set it directly
+                setInvoices(response.data);
+                setTotalPages(1); // Default to 1 if no pagination info
+            } else if (response.data && response.data.invoices) {
+                // If response is an object with invoices property
+                setInvoices(response.data.invoices);
+                setTotalPages(response.data.totalPages || 1);
+            } else if (response.data && Array.isArray(response.data.data)) {
+                // Handle another common API format
+                setInvoices(response.data.data);
+                setTotalPages(response.data.meta?.total_pages || 1);
+            } else {
+                // Fallback for unknown formats
+                console.log('Search API Response Format:', response.data);
+                setInvoices([]);
+            }
+        } catch (error) {
+            console.error('Error searching invoices:', error);
+            setError('Error searching invoices. Please try again.');
+            setInvoices([]);
+        } finally {
+            setIsLoading(false);
         }
     };
 
     const handleSearch = (e) => {
         setSearchTerm(e.target.value);
-        // Implement search logic with debounce
+        setPage(1); // Reset to first page when searching
     };
 
     const handleFilter = (e) => {
         setSelectedFY(e.target.value);
-        // Implement filter logic
+        setPage(1); // Reset to first page when filtering
+        
+        if (e.target.value) {
+            filterByFinancialYear(e.target.value);
+        } else {
+            fetchInvoices(1);
+        }
+    };
+    
+    const filterByFinancialYear = async (year) => {
+        try {
+            setIsLoading(true);
+            const response = await api.get(`/invoices?financialYear=${year}&page=1&limit=10`);
+            
+            // Handle different response formats
+            if (Array.isArray(response.data)) {
+                // If response is an array, set it directly
+                setInvoices(response.data);
+                setTotalPages(1); // Default to 1 if no pagination info
+            } else if (response.data && response.data.invoices) {
+                // If response is an object with invoices property
+                setInvoices(response.data.invoices);
+                setTotalPages(response.data.totalPages || 1);
+            } else if (response.data && Array.isArray(response.data.data)) {
+                // Handle another common API format
+                setInvoices(response.data.data);
+                setTotalPages(response.data.meta?.total_pages || 1);
+            } else {
+                // Fallback for unknown formats
+                console.log('Filter API Response Format:', response.data);
+                setInvoices([]);
+            }
+        } catch (error) {
+            console.error('Error filtering invoices:', error);
+            setError('Error filtering invoices. Please try again.');
+            setInvoices([]);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleCreate = async (e) => {
@@ -71,11 +182,26 @@ export default function InvoiceManagement() {
         }
 
         try {
-            const response = await api.post('/invoices', {
-                ...formData,
+            // Map the form field names to match the API expectations
+            const apiData = {
+                invoiceNumber: formData.invoiceNumber,
+                invoiceDate: formData.date,          // Map 'date' to 'invoiceDate'
+                invoiceAmount: formData.amount,      // Map 'amount' to 'invoiceAmount'
+                description: formData.description,
+                financialYear: formData.financialYear,
                 createdBy: currentUser.id
-            });
-            setInvoices([...invoices, response.data]);
+            };
+            
+            // Log the data being sent to help with debugging
+            console.log('Creating invoice with data:', apiData);
+            
+            const response = await api.post('/invoices', apiData);
+            
+            console.log('API response from create:', response);
+            
+            // Refresh the invoices list after creating
+            await fetchInvoices(page);
+            
             setShowCreateForm(false);
             setFormData({
                 invoiceNumber: '',
@@ -86,7 +212,30 @@ export default function InvoiceManagement() {
             });
         } catch (error) {
             console.error('Error creating invoice:', error);
-            setError(error.response?.data?.message || 'Error creating invoice');
+            
+            // Enhanced error logging
+            if (error.response) {
+                // The request was made and the server responded with a status code
+                // that falls out of the range of 2xx
+                console.error('Error response data:', error.response.data);
+                console.error('Error response status:', error.response.status);
+                console.error('Error response headers:', error.response.headers);
+                
+                setError(`Error creating invoice: ${error.response.status} - ${
+                    error.response.data?.message || 
+                    error.response.data?.error || 
+                    JSON.stringify(error.response.data) || 
+                    'Unknown server error'
+                }`);
+            } else if (error.request) {
+                // The request was made but no response was received
+                console.error('Error request:', error.request);
+                setError('Network error: No response received from server');
+            } else {
+                // Something happened in setting up the request
+                console.error('Error message:', error.message);
+                setError(`Error creating invoice: ${error.message}`);
+            }
         }
     };
 
@@ -99,14 +248,62 @@ export default function InvoiceManagement() {
             return;
         }
 
+        if (!selectedInvoice) {
+            setError('No invoice selected for update.');
+            return;
+        }
+
         try {
-            const response = await api.put(`/invoices/${selectedInvoice.id}`, formData);
-            setInvoices(invoices.map(inv => inv.id === selectedInvoice.id ? response.data : inv));
+            // Map the form field names to match the API expectations
+            const apiData = {
+                invoiceNumber: formData.invoiceNumber,
+                invoiceDate: formData.date,          // Map 'date' to 'invoiceDate'
+                invoiceAmount: formData.amount,      // Map 'amount' to 'invoiceAmount'
+                description: formData.description,
+                financialYear: formData.financialYear
+            };
+            
+            // Log update data for debugging
+            console.log('Updating invoice with ID:', selectedInvoice.id);
+            console.log('Update data:', apiData);
+            
+            const response = await api.put(`/invoices/${selectedInvoice.id}`, apiData);
+            
+            console.log('API update response:', response);
+            
+            // Refresh the invoices list after updating
+            await fetchInvoices(page);
+            
             setShowUpdateForm(false);
             setSelectedInvoice(null);
+            setFormData({
+                invoiceNumber: '',
+                date: '',
+                amount: '',
+                description: '',
+                financialYear: ''
+            });
         } catch (error) {
             console.error('Error updating invoice:', error);
-            setError(error.response?.data?.message || 'Error updating invoice');
+            
+            // Enhanced error logging
+            if (error.response) {
+                console.error('Error response data:', error.response.data);
+                console.error('Error response status:', error.response.status);
+                
+                setError(`Error updating invoice: ${error.response.status} - ${
+                    error.response.data?.message || 
+                    error.response.data?.error || 
+                    JSON.stringify(error.response.data) || 
+                    'Unknown server error'
+                }`);
+            } else if (error.request) {
+                console.error('Error request:', error.request);
+                setError('Network error: No response received from server');
+            } else {
+                console.error('Error message:', error.message);
+                setError(`Error updating invoice: ${error.message}`);
+            }
         }
     };
 
@@ -118,24 +315,51 @@ export default function InvoiceManagement() {
 
         if (window.confirm('Are you sure you want to delete this invoice?')) {
             try {
-                await api.delete(`/invoices/${id}`);
-                setInvoices(invoices.filter(inv => inv.id !== id));
+                console.log('Deleting invoice with ID:', id);
+                
+                const response = await api.delete(`/invoices/${id}`);
+                console.log('Delete response:', response);
+                
+                // Refresh the invoices list after deleting
+                await fetchInvoices(page);
             } catch (error) {
                 console.error('Error deleting invoice:', error);
-                setError(error.response?.data?.message || 'Error deleting invoice');
+                
+                // Enhanced error logging
+                if (error.response) {
+                    console.error('Error response data:', error.response.data);
+                    console.error('Error response status:', error.response.status);
+                    
+                    setError(`Error deleting invoice: ${error.response.status} - ${
+                        error.response.data?.message || 
+                        error.response.data?.error || 
+                        JSON.stringify(error.response.data) || 
+                        'Unknown server error'
+                    }`);
+                } else if (error.request) {
+                    console.error('Error request:', error.request);
+                    setError('Network error: No response received from server');
+                } else {
+                    console.error('Error message:', error.message);
+                    setError(`Error deleting invoice: ${error.message}`);
+                }
             }
         }
     };
 
-    if (isLoading) {
+    const handlePageChange = (newPage) => {
+        setPage(newPage);
+    };
+
+    if (isLoading && !invoices.length) {
         return <div>Loading...</div>;
     }
 
     return (
-        <div>
-            {error && <div style={{ color: 'red', marginBottom: '10px' }}>{error}</div>}
+        <div className="invoice-management">
+            {error && <div className="error-message" style={{ color: 'red', marginBottom: '10px' }}>{error}</div>}
 
-            <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+            <div className="controls" style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
                 <input
                     type="text"
                     placeholder="Search invoices..."
@@ -168,100 +392,267 @@ export default function InvoiceManagement() {
             </div>
 
             {showCreateForm && (
-                <div style={{ marginBottom: '20px', padding: '20px', border: '1px solid #ccc', borderRadius: '4px' }}>
+                <div className="form-container" style={{ marginBottom: '20px', padding: '20px', border: '1px solid #ccc', borderRadius: '4px' }}>
                     <h3>Create New Invoice</h3>
                     <form onSubmit={handleCreate}>
-                        <input
-                            type="text"
-                            placeholder="Invoice Number"
-                            value={formData.invoiceNumber}
-                            onChange={(e) => setFormData({ ...formData, invoiceNumber: e.target.value })}
-                            required
-                        />
-                        <input
-                            type="date"
-                            value={formData.date}
-                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                            required
-                        />
-                        <input
-                            type="number"
-                            placeholder="Amount"
-                            value={formData.amount}
-                            onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                            required
-                        />
-                        <input
-                            type="text"
-                            placeholder="Description"
-                            value={formData.description}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            required
-                        />
-                        <select
-                            value={formData.financialYear}
-                            onChange={(e) => setFormData({ ...formData, financialYear: e.target.value })}
-                            required
-                        >
-                            <option value="">Select Financial Year</option>
-                            <option value="2023-24">2023-24</option>
-                            <option value="2022-23">2022-23</option>
-                        </select>
-                        <button type="submit">Create</button>
-                        <button type="button" onClick={() => setShowCreateForm(false)}>Cancel</button>
+                        <div className="form-group" style={{ marginBottom: '10px' }}>
+                            <input
+                                type="text"
+                                placeholder="Invoice Number"
+                                value={formData.invoiceNumber}
+                                onChange={(e) => setFormData({ ...formData, invoiceNumber: e.target.value })}
+                                required
+                                style={{ padding: '8px', width: '100%', marginBottom: '5px' }}
+                            />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: '10px' }}>
+                            <input
+                                type="date"
+                                value={formData.date}
+                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                required
+                                style={{ padding: '8px', width: '100%', marginBottom: '5px' }}
+                            />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: '10px' }}>
+                            <input
+                                type="number"
+                                placeholder="Amount"
+                                value={formData.amount}
+                                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                                required
+                                style={{ padding: '8px', width: '100%', marginBottom: '5px' }}
+                            />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: '10px' }}>
+                            <input
+                                type="text"
+                                placeholder="Description"
+                                value={formData.description}
+                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                required
+                                style={{ padding: '8px', width: '100%', marginBottom: '5px' }}
+                            />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: '10px' }}>
+                            <select
+                                value={formData.financialYear}
+                                onChange={(e) => setFormData({ ...formData, financialYear: e.target.value })}
+                                required
+                                style={{ padding: '8px', width: '100%', marginBottom: '5px' }}
+                            >
+                                <option value="">Select Financial Year</option>
+                                <option value="2023-24">2023-24</option>
+                                <option value="2022-23">2022-23</option>
+                            </select>
+                        </div>
+                        <div className="form-actions" style={{ display: 'flex', gap: '10px' }}>
+                            <button 
+                                type="submit"
+                                style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                                Create
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={() => setShowCreateForm(false)}
+                                style={{ padding: '8px 16px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
                     </form>
                 </div>
             )}
 
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            {showUpdateForm && selectedInvoice && (
+                <div className="form-container" style={{ marginBottom: '20px', padding: '20px', border: '1px solid #ccc', borderRadius: '4px' }}>
+                    <h3>Update Invoice</h3>
+                    <form onSubmit={handleUpdate}>
+                        <div className="form-group" style={{ marginBottom: '10px' }}>
+                            <input
+                                type="text"
+                                placeholder="Invoice Number"
+                                value={formData.invoiceNumber}
+                                onChange={(e) => setFormData({ ...formData, invoiceNumber: e.target.value })}
+                                required
+                                style={{ padding: '8px', width: '100%', marginBottom: '5px' }}
+                            />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: '10px' }}>
+                            <input
+                                type="date"
+                                value={formData.date}
+                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                required
+                                style={{ padding: '8px', width: '100%', marginBottom: '5px' }}
+                            />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: '10px' }}>
+                            <input
+                                type="number"
+                                placeholder="Amount"
+                                value={formData.amount}
+                                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                                required
+                                style={{ padding: '8px', width: '100%', marginBottom: '5px' }}
+                            />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: '10px' }}>
+                            <input
+                                type="text"
+                                placeholder="Description"
+                                value={formData.description}
+                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                required
+                                style={{ padding: '8px', width: '100%', marginBottom: '5px' }}
+                            />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: '10px' }}>
+                            <select
+                                value={formData.financialYear}
+                                onChange={(e) => setFormData({ ...formData, financialYear: e.target.value })}
+                                required
+                                style={{ padding: '8px', width: '100%', marginBottom: '5px' }}
+                            >
+                                <option value="">Select Financial Year</option>
+                                <option value="2023-24">2023-24</option>
+                                <option value="2022-23">2022-23</option>
+                            </select>
+                        </div>
+                        <div className="form-actions" style={{ display: 'flex', gap: '10px' }}>
+                            <button 
+                                type="submit"
+                                style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                                Update
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={() => {
+                                    setShowUpdateForm(false);
+                                    setSelectedInvoice(null);
+                                    setFormData({
+                                        invoiceNumber: '',
+                                        date: '',
+                                        amount: '',
+                                        description: '',
+                                        financialYear: ''
+                                    });
+                                }}
+                                style={{ padding: '8px 16px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            <table className="invoice-table" style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #ddd' }}>
                 <thead>
-                    <tr>
-                        <th>Invoice Number</th>
-                        <th>Date</th>
-                        <th>Amount</th>
-                        <th>Description</th>
-                        <th>Financial Year</th>
-                        <th>Created By</th>
-                        <th>Actions</th>
+                    <tr style={{ backgroundColor: '#f2f2f2' }}>
+                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Invoice Number</th>
+                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Date</th>
+                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Amount</th>
+                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Description</th>
+                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Financial Year</th>
+                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Created By</th>
+                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {invoices.map((invoice) => (
-                        <tr key={invoice.id}>
-                            <td>{invoice.invoiceNumber}</td>
-                            <td>{invoice.date}</td>
-                            <td>{invoice.amount}</td>
-                            <td>{invoice.description}</td>
-                            <td>{invoice.financialYear}</td>
-                            <td>{invoice.createdBy}</td>
-                            <td>
-                                <button onClick={() => {
-                                    setSelectedInvoice(invoice);
-                                    setFormData(invoice);
-                                    setShowUpdateForm(true);
-                                }}>Edit</button>
-                                <button onClick={() => handleDelete(invoice.id)}>Delete</button>
+                    {invoices.length > 0 ? (
+                        invoices.map((invoice) => (
+                            <tr key={invoice.id} style={{ borderBottom: '1px solid #ddd' }}>
+                                <td style={{ padding: '12px' }}>{invoice.invoiceNumber}</td>
+                                <td style={{ padding: '12px' }}>{invoice.invoiceDate || invoice.date}</td>
+                                <td style={{ padding: '12px' }}>{invoice.invoiceAmount || invoice.amount}</td>
+                                <td style={{ padding: '12px' }}>{invoice.description}</td>
+                                <td style={{ padding: '12px' }}>{invoice.financialYear}</td>
+                                <td style={{ padding: '12px' }}>{invoice.createdBy}</td>
+                                <td style={{ padding: '12px' }}>
+                                    <button 
+                                        onClick={() => {
+                                            setSelectedInvoice(invoice);
+                                            setFormData({
+                                                invoiceNumber: invoice.invoiceNumber || '',
+                                                date: invoice.invoiceDate || invoice.date || '',
+                                                amount: invoice.invoiceAmount || invoice.amount || '',
+                                                description: invoice.description || '',
+                                                financialYear: invoice.financialYear || ''
+                                            });
+                                            setShowUpdateForm(true);
+                                        }}
+                                        style={{ 
+                                            marginRight: '5px', 
+                                            padding: '5px 10px', 
+                                            backgroundColor: '#007bff', 
+                                            color: 'white', 
+                                            border: 'none', 
+                                            borderRadius: '4px', 
+                                            cursor: 'pointer' 
+                                        }}
+                                    >
+                                        Edit
+                                    </button>
+                                    <button 
+                                        onClick={() => handleDelete(invoice.id)}
+                                        style={{ 
+                                            padding: '5px 10px', 
+                                            backgroundColor: '#dc3545', 
+                                            color: 'white', 
+                                            border: 'none', 
+                                            borderRadius: '4px', 
+                                            cursor: 'pointer' 
+                                        }}
+                                    >
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        ))
+                    ) : (
+                        <tr>
+                            <td colSpan="7" style={{ padding: '12px', textAlign: 'center' }}>
+                                {isLoading ? 'Loading invoices...' : 'No invoices found'}
                             </td>
                         </tr>
-                    ))}
+                    )}
                 </tbody>
             </table>
 
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
+            <div className="pagination" style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
                 <button
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    onClick={() => handlePageChange(Math.max(1, page - 1))}
                     disabled={page === 1}
+                    style={{
+                        padding: '8px 16px',
+                        backgroundColor: page === 1 ? '#e9ecef' : '#007bff',
+                        color: page === 1 ? '#6c757d' : 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: page === 1 ? 'not-allowed' : 'pointer'
+                    }}
                 >
                     Previous
                 </button>
-                <span>Page {page} of {totalPages}</span>
+                <span style={{ display: 'flex', alignItems: 'center' }}>Page {page} of {totalPages}</span>
                 <button
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
                     disabled={page === totalPages}
+                    style={{
+                        padding: '8px 16px',
+                        backgroundColor: page === totalPages ? '#e9ecef' : '#007bff',
+                        color: page === totalPages ? '#6c757d' : 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: page === totalPages ? 'not-allowed' : 'pointer'
+                    }}
                 >
                     Next
                 </button>
             </div>
         </div>
     );
-} 
+}
