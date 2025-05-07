@@ -54,44 +54,86 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2 style={{ marginTop: '20px', textAlign: 'center', fontSize: '1.875rem', fontWeight: 'bold', color: '#111827' }}>
             Sign in to your account
           </h2>
         </div>
+        
+        {error && (
+          <div className="error-message" style={{ color: 'red', marginBottom: '10px', padding: '10px', borderRadius: '4px', backgroundColor: '#FEE2E2', border: '1px solid #FCA5A5' }}>
+            {error}
+          </div>
+        )}
+        
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
-              <div className="text-red-600 text-sm">{error}</div>
-            </div>
-          )}
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <label htmlFor="email" className="sr-only">Email address</label>
+          <div className="form-group" style={{ marginBottom: '10px' }}>
+            <label htmlFor="email" style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#374151' }}>
+              Email address
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={!isBackendConnected}
+              style={{ 
+                padding: '8px', 
+                width: '100%', 
+                marginBottom: '5px',
+                borderRadius: '4px',
+                border: '1px solid #ccc'
+              }}
+              placeholder="you@example.com"
+            />
+          </div>
+          
+          <div className="form-group" style={{ marginBottom: '10px' }}>
+            <label htmlFor="password" style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#374151' }}>
+              Password
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={!isBackendConnected}
+              style={{ 
+                padding: '8px', 
+                width: '100%', 
+                marginBottom: '5px',
+                borderRadius: '4px',
+                border: '1px solid #ccc'
+              }}
+              placeholder="••••••••"
+            />
+          </div>
+          
+          <div className="flex items-center justify-between" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
               <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={!isBackendConnected}
+                id="remember-me"
+                name="remember-me"
+                type="checkbox"
+                style={{ 
+                  height: '16px', 
+                  width: '16px', 
+                  borderRadius: '3px',
+                  border: '1px solid #ccc'
+                }}
               />
+              <label htmlFor="remember-me" style={{ marginLeft: '8px', color: '#111827', fontSize: '0.875rem' }}>
+                Remember me
+              </label>
             </div>
-            <div>
-              <label htmlFor="password" className="sr-only">Password</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={!isBackendConnected}
-              />
+
+            <div style={{ fontSize: '0.875rem' }}>
+              <a href="#" style={{ color: '#007bff', textDecoration: 'none', fontWeight: '500' }}>
+                Forgot your password?
+              </a>
             </div>
           </div>
 
@@ -99,10 +141,27 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading || !isBackendConnected}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#007bff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: loading || !isBackendConnected ? 'not-allowed' : 'pointer',
+                width: '100%',
+                opacity: loading || !isBackendConnected ? '0.5' : '1'
+              }}
             >
               {loading ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                <div style={{ 
+                  display: 'inline-block',
+                  width: '20px',
+                  height: '20px',
+                  border: '2px solid rgba(255, 255, 255, 0.3)',
+                  borderRadius: '50%',
+                  borderTopColor: 'white',
+                  animation: 'spin 1s linear infinite'
+                }}></div>
               ) : (
                 'Sign in'
               )}
@@ -110,6 +169,13 @@ const Login = () => {
           </div>
         </form>
       </div>
+      
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };
