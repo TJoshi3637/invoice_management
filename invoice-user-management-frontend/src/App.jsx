@@ -4,7 +4,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import UserManagement from './components/UserManagement';
 
-function App() {
+const App = () => {
   return (
     <Router>
       <Routes>
@@ -15,6 +15,6 @@ function App() {
       </Routes>
     </Router>
   );
-}
+};
 
 export default App;

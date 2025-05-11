@@ -1,71 +1,95 @@
 import axios from 'axios';
 
+// Create axios instance with default config
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api',
   withCredentials: true,
   headers: {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json'
   },
-  timeout: 5000, // 5 second timeout
+  timeout: 5000 // 5 second timeout
 });
 
 // Add request interceptor for logging
 api.interceptors.request.use(
-  (config) => {
+  config => {
+    // Only log non-health check requests
+    if (!config.url.includes('/health')) {
+      console.log('Making request to:', config.url);
+      console.log('Request headers:', config.headers);
+    }
     // Add token to requests if it exists
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log('Making request to:', config.url);
-    console.log('Request headers:', config.headers);
     return config;
   },
-  (error) => {
-    console.error('Request error:', error);
+  error => {
     return Promise.reject(error);
   }
 );
 
-// Add response interceptor for logging
+// Add response interceptor for better error handling
 api.interceptors.response.use(
-  (response) => {
-    console.log('Response from:', response.config.url);
-    console.log('Response data:', response.data);
+  response => {
+    // Only log non-health check responses
+    if (!response.config.url.includes('/health')) {
+      console.log('Response from:', response.config.url);
+      console.log('Response data:', response.data);
+    }
     return response;
   },
-  (error) => {
-    console.error('Response error:', error);
-    if (error.code === 'ECONNREFUSED') {
-      console.error('Backend server is not running or not accessible');
-      return Promise.reject(new Error('Backend server is not running. Please start the server and try again.'));
+  error => {
+    if (error.code === 'ERR_NETWORK') {
+      console.error('Network error: Unable to connect to the server');
+      throw new Error('Unable to connect to the server. Please check if the backend is running.');
     }
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
-    return Promise.reject(error);
+    throw error.response?.data || error.message;
   }
 );
 
-// Test backend connection
-export const testBackendConnection = async () => {
-  try {
-    await api.get('/health');
-    return true;
-  } catch (error) {
-    console.error('Backend connection test failed:', error);
-    return false;
-  }
+// Debounce function
+const debounce = (func, wait) => {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
 };
 
+// Health check with debouncing
+let healthCheckInProgress = false;
+const debouncedHealthCheck = debounce(async () => {
+  if (healthCheckInProgress) return;
+
+  try {
+    healthCheckInProgress = true;
+    const response = await api.get('/health');
+    return response.data;
+  } catch (error) {
+    console.error('Health check failed:', error);
+    throw error;
+  } finally {
+    healthCheckInProgress = false;
+  }
+}, 1000);
+
 // Auth endpoints
-export const login = async (email, password) => {
+export const login = async (username, password) => {
   try {
     console.log('Attempting login...');
     const response = await api.post('/auth/login', {
-      email,
+      username,
       password,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
     });
@@ -103,17 +127,16 @@ export const getCurrentUser = async () => {
     return response.data;
   } catch (error) {
     console.error('Error fetching current user:', error);
-    if (error.code === 'ECONNREFUSED') {
-      throw new Error('Backend server is not running. Please start the server and try again.');
-    }
     throw error;
   }
 };
 
-export const getUsers = async () => {
+export const getUsers = async (page = 1, limit = 10) => {
   try {
     console.log('Fetching users...');
-    const response = await api.get('/users');
+    const response = await api.get('/users', {
+      params: { page, limit }
+    });
     return response.data;
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -123,11 +146,57 @@ export const getUsers = async () => {
 
 export const createUser = async (userData) => {
   try {
-    console.log('Creating user...');
-    const response = await api.post('/users/create', userData);
+    // Validate required fields before sending
+    const requiredFields = ['username', 'email', 'password', 'role'];
+    const missingFields = requiredFields.filter(field => !userData[field]);
+
+    if (missingFields.length > 0) {
+      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+    }
+
+    console.log('Creating user with data:', {
+      ...userData,
+      password: '***' // Hide password in logs
+    });
+
+    // Log current user from localStorage
+    const currentUser = JSON.parse(localStorage.getItem('user'));
+    console.log('Current user from localStorage:', currentUser);
+
+    // Log request headers
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(currentUser?.token ? { 'Authorization': `Bearer ${currentUser.token}` } : {})
+    };
+    console.log('Request headers:', headers);
+
+    const response = await api.post('/users', userData);
     return response.data;
   } catch (error) {
-    console.error('Error creating user:', error);
+    // Enhanced error logging
+    console.error('Full error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      headers: error.response?.headers,
+      config: {
+        url: error.config?.url,
+        method: error.config?.method,
+        headers: error.config?.headers
+      },
+      validationErrors: error.response?.data?.errors || error.response?.data?.validationErrors
+    });
+
+    // If it's a validation error, show the specific errors
+    if (error.response?.status === 400) {
+      const validationErrors = error.response.data?.errors || error.response.data?.validationErrors;
+      if (validationErrors) {
+        throw new Error(`Validation failed: ${Object.entries(validationErrors)
+          .map(([field, message]) => `${field}: ${message}`)
+          .join(', ')}`);
+      }
+    }
+
     throw error;
   }
 };
@@ -198,5 +267,8 @@ export const deleteInvoice = async (invoiceId) => {
     throw error;
   }
 };
+
+// Test backend connection with debouncing
+export const testBackendConnection = debouncedHealthCheck;
 
 export default api;

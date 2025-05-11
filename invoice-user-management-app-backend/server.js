@@ -6,9 +6,9 @@ const authRoutes = require("./src/routes/authRoutes");
 const userRoutes = require("./src/routes/userRoutes");
 const invoiceRoutes = require("./src/routes/invoiceRoutes");
 
-// Configure CORS
+// Configure CORS to allow multiple origins
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5001', 'http://127.0.0.1:3000'], // Allow all frontend origins
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
@@ -51,8 +51,8 @@ const startServer = async () => {
     await mongoose.connect("mongodb://127.0.0.1:27017/invoiceDB");
     console.log("Connected to MongoDB");
 
-    // Try different ports if 5000 is in use
-    let port = 5000;
+    // Try different ports if 5001 is in use
+    let port = 5001;
     let server;
 
     while (port < 5010) {
@@ -72,7 +72,7 @@ const startServer = async () => {
     }
 
     if (!server) {
-      throw new Error('Could not find an available port between 5000 and 5010');
+      throw new Error('Could not find an available port between 5001 and 5010');
     }
 
     // Handle server errors

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { getCurrentUser } from '../api/apiService';
 
 const UserProfile = () => {
     const [userData, setUserData] = useState(null);
@@ -9,27 +9,12 @@ const UserProfile = () => {
     useEffect(() => {
         const fetchUserData = async () => {
             try {
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    throw new Error('No authentication token found. Please login first.');
-                }
-
-                const response = await axios.get('http://localhost:5000/api/auth/current-user', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (response.data) {
-                    setUserData(response.data);
-                } else {
-                    throw new Error('No user data received');
-                }
-                setLoading(false);
+                const data = await getCurrentUser();
+                setUserData(data);
             } catch (err) {
                 console.error('Error fetching user data:', err);
                 setError(err.response?.data?.message || err.message || 'Failed to fetch user data');
+            } finally {
                 setLoading(false);
             }
         };

@@ -1,11 +1,16 @@
 const express = require("express");
 const router = express.Router();
 const invoiceController = require("../controllers/invoiceController");
-const { authMiddleware } = require("../middlewares/authMiddleware");
+const authMiddleware = require("../middlewares/authMiddleware");
 
-router.post("/", authMiddleware, invoiceController.createInvoice);
-router.get("/", authMiddleware, invoiceController.getInvoices);
-router.put("/:invoiceId", authMiddleware, invoiceController.updateInvoice);
-router.delete("/:invoiceId", authMiddleware, invoiceController.deleteInvoice);
+// Apply auth middleware to all routes
+router.use(authMiddleware);
+
+// Invoice routes
+router.post("/", invoiceController.createInvoice);
+router.get("/", invoiceController.getInvoices);
+router.get("/:invoiceId", invoiceController.getInvoiceById);
+router.put("/:invoiceId", invoiceController.updateInvoice);
+router.delete("/:invoiceId", invoiceController.deleteInvoice);
 
 module.exports = router;

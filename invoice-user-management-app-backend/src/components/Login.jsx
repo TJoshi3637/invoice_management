@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { login } from '../api/apiService';
+import { checkBackendHealth } from '../utils/healthCheck';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -9,26 +10,72 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
+    useEffect(() => {
+        const checkBackendConnection = async () => {
+            const health = await checkBackendHealth();
+            if (!health.isHealthy) {
+                setError(health.error);
+            }
+        };
+        checkBackendConnection();
+    }, []);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        console.log('Form submitted');
         setError('');
         setLoading(true);
 
+        if (!email || !password) {
+            console.log('Missing credentials:', { email: !!email, password: !!password });
+            setError('Please enter both email and password');
+            setLoading(false);
+            return;
+        }
+
         try {
-            const response = await axios.post('http://localhost:5000/api/auth/login', {
+            console.log('Starting login process with:', {
                 email,
-                password,
+                passwordLength: password?.length,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
             });
 
+            const response = await login({
+                username: email,
+                password: password,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+            });
+
+            console.log('Login response received:', {
+                hasToken: !!response?.token,
+                hasUser: !!response?.user,
+                userData: response?.user
+            });
+
+            if (!response?.token || !response?.user) {
+                console.error('Invalid response:', response);
+                throw new Error('Invalid response from server');
+            }
+
             // Store the token in localStorage
-            localStorage.setItem('token', response.data.token);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
+            localStorage.setItem('token', response.token);
+            localStorage.setItem('user', JSON.stringify(response.user));
+
+            console.log('Auth data stored, navigating to dashboard...');
 
             // Redirect to dashboard
-            navigate('/dashboard');
+            navigate('/dashboard', { replace: true });
         } catch (err) {
-            console.error('Login error:', err);
+            console.error('Login error details:', {
+                message: err.message,
+                response: err.response?.data,
+                status: err.response?.status,
+                requestData: {
+                    username: email,
+                    passwordLength: password?.length,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                }
+            });
             setError(err.response?.data?.message || 'Login failed. Please try again.');
         } finally {
             setLoading(false);
