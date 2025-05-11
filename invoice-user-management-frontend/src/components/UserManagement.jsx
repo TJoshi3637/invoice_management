@@ -2,11 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, message, Space, Popconfirm, Input, Select } from 'antd';
 import { EditOutlined, DeleteOutlined, UserAddOutlined } from '@ant-design/icons';
 import userService, { USER_ROLES, validateUserCreation } from '../services/userService';
+import GroupCreateModal from './GroupCreateModal';
+
+const GROUPS = ['Group1', 'Group2', 'Group3'];
 
 const UserManagement = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [modalVisible, setModalVisible] = useState(false);
+    const [groupModalVisible, setGroupModalVisible] = useState(false);
     const [form] = Form.useForm();
     const [editingUser, setEditingUser] = useState(null);
     const [currentUser, setCurrentUser] = useState(null);
@@ -136,7 +140,8 @@ const UserManagement = () => {
                 username: user.username,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                role: user.role,
+                group: user.group || undefined
             });
         } else {
             form.resetFields();
@@ -158,11 +163,15 @@ const UserManagement = () => {
         }
     };
 
+    const adminAndManagers = users.filter(
+        u => u.role === 'ADMIN' || u.role === 'UNIT_MANAGER'
+    );
+
     const columns = [
         {
             title: 'User ID',
-            dataIndex: 'id',
-            key: 'id',
+            dataIndex: 'userId',
+            key: 'userId',
         },
         {
             title: 'Username',
@@ -185,12 +194,18 @@ const UserManagement = () => {
             key: 'role',
         },
         {
+            title: 'Group',
+            dataIndex: 'group',
+            key: 'group',
+            render: (group) => group || '-',
+        },
+        {
             title: 'Actions',
             key: 'actions',
             render: (_, record) => (
-                <Space key={`actions-${record.id}`}>
+                <Space key={`actions-${record.id || record._id}`}>
                     <Button
-                        key={`edit-${record.id}`}
+                        key={`edit-${record.id || record._id}`}
                         icon={<EditOutlined />}
                         onClick={() => showModal(record)}
                         disabled={!validateUserCreation(currentUser?.role, record.role)}
@@ -198,14 +213,14 @@ const UserManagement = () => {
                         Edit
                     </Button>
                     <Popconfirm
-                        key={`delete-${record.id}`}
+                        key={`delete-${record.id || record._id}`}
                         title="Are you sure you want to delete this user?"
-                        onConfirm={() => handleDeleteUser(record.id)}
+                        onConfirm={() => handleDeleteUser(record.id || record._id)}
                         okText="Yes"
                         cancelText="No"
                     >
                         <Button
-                            key={`delete-btn-${record.id}`}
+                            key={`delete-btn-${record.id || record._id}`}
                             icon={<DeleteOutlined />}
                             danger
                             disabled={!validateUserCreation(currentUser?.role, record.role)}
@@ -218,6 +233,8 @@ const UserManagement = () => {
         },
     ];
 
+    console.log(users);
+
     return (
         <div style={{ padding: '24px' }}>
             <div style={{ marginBottom: '16px' }}>
@@ -229,16 +246,25 @@ const UserManagement = () => {
                 >
                     Add User
                 </Button>
+                <Button
+                    type="dashed"
+                    style={{ marginLeft: 8 }}
+                    onClick={() => setGroupModalVisible(true)}
+                >
+                    Create Group
+                </Button>
             </div>
 
             <Table
                 columns={columns}
                 dataSource={users.map(user => ({
                     ...user,
-                    key: user.id
+                    userId: user.userId,
+                    username: user.username || user.userName,
+                    key: user._id
                 }))}
                 loading={loading}
-                rowKey="id"
+                rowKey="_id"
                 pagination={{
                     ...pagination,
                     onChange: (page, pageSize) => fetchUsers(page, pageSize)
@@ -330,6 +356,19 @@ const UserManagement = () => {
                         </Select>
                     </Form.Item>
 
+                    {['ADMIN', 'UNIT_MANAGER'].includes(form.getFieldValue('role')) && (
+                        <Form.Item
+                            name="group"
+                            label="Group (optional)"
+                        >
+                            <Select placeholder="Select group" allowClear>
+                                {GROUPS.map(group => (
+                                    <Select.Option key={group} value={group}>{group}</Select.Option>
+                                ))}
+                            </Select>
+                        </Form.Item>
+                    )}
+
                     <Form.Item>
                         <Space>
                             <Button type="primary" htmlType="submit" loading={loading}>
@@ -346,6 +385,19 @@ const UserManagement = () => {
                     </Form.Item>
                 </Form>
             </Modal>
+
+            <GroupCreateModal
+                visible={groupModalVisible}
+                onClose={() => setGroupModalVisible(false)}
+                users={users.filter(u =>
+                    (u.role && u.role.toUpperCase() === 'ADMIN') ||
+                    (u.role && u.role.toUpperCase() === 'UNIT_MANAGER')
+                )}
+                onGroupCreated={() => {
+                    // Optionally refresh users or groups here
+                    // fetchUsers(pagination.current, pagination.pageSize);
+                }}
+            />
         </div>
     );
 };

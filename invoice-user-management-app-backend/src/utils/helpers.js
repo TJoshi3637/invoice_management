@@ -3,13 +3,16 @@ const User = require('../models/User');
 /**
  * Generate a unique user ID based on role
  * Format: [Role Prefix][Number]
- * Examples: A1, UM1, U1
+ * Examples: SA1, A1, UM1, U1
  */
 exports.generateUserId = async (role) => {
     try {
         // Get the prefix based on role
         let prefix;
         switch (role) {
+            case 'SUPER_ADMIN':
+                prefix = 'SA';
+                break;
             case 'ADMIN':
                 prefix = 'A';
                 break;

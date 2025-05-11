@@ -4,7 +4,7 @@ const User = require("../models/User");
 // POST /api/groups
 exports.createGroup = async (req, res) => {
     try {
-        const { name, type, members } = req.body;
+        const { name, type, members, description } = req.body;
         const creator = req.user;
 
         // Validate creator's role
@@ -25,6 +25,7 @@ exports.createGroup = async (req, res) => {
             name,
             type,
             members,
+            description,
             createdBy: creator._id
         });
 
@@ -44,7 +45,7 @@ exports.createGroup = async (req, res) => {
         });
     } catch (err) {
         console.error("Error creating group:", err);
-        res.status(500).json({ msg: 'Server error' });
+        res.status(500).json({ msg: err.message || 'Server error' });
     }
 };
 
@@ -67,7 +68,9 @@ exports.getGroups = async (req, res) => {
 
         const groups = await Group.find(query)
             .populate('members', 'userId name email role')
-            .populate('createdBy', 'userId name email role');
+            .populate('createdBy', 'userId name email role')
+            .populate('visibleUnitManagers', 'userId name email role')
+            .populate('visibleUsers', 'userId name email role');
 
         res.json(groups);
     } catch (err) {
@@ -80,7 +83,7 @@ exports.getGroups = async (req, res) => {
 exports.updateGroup = async (req, res) => {
     try {
         const { groupId } = req.params;
-        const { name, members } = req.body;
+        const { name, members, description } = req.body;
         const currentUser = req.user;
 
         const group = await Group.findById(groupId);
@@ -103,6 +106,8 @@ exports.updateGroup = async (req, res) => {
 
         // Update group
         if (name) group.name = name;
+        if (description) group.description = description;
+
         if (members) {
             // Remove old members
             const oldMembers = group.members;
@@ -168,6 +173,97 @@ exports.deleteGroup = async (req, res) => {
         res.json({ msg: 'Group deleted successfully' });
     } catch (err) {
         console.error("Error deleting group:", err);
+        res.status(500).json({ msg: 'Server error' });
+    }
+};
+
+// POST /api/groups/:groupId/members
+exports.addMember = async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        const { userId } = req.body;
+        const currentUser = req.user;
+
+        const group = await Group.findById(groupId);
+        if (!group) {
+            return res.status(404).json({ msg: 'Group not found' });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ msg: 'User not found' });
+        }
+
+        // Validate user role matches group type
+        if (group.type === 'ADMIN' && user.role !== 'ADMIN') {
+            return res.status(400).json({ msg: 'Only Admin users can be added to Admin groups' });
+        }
+        if (group.type === 'UNIT_MANAGER' && user.role !== 'UNIT_MANAGER') {
+            return res.status(400).json({ msg: 'Only Unit Manager users can be added to Unit Manager groups' });
+        }
+
+        await group.addMember(userId);
+        await user.save();
+
+        res.json({ msg: 'Member added successfully', group });
+    } catch (err) {
+        console.error("Error adding member:", err);
+        res.status(500).json({ msg: 'Server error' });
+    }
+};
+
+// DELETE /api/groups/:groupId/members/:userId
+exports.removeMember = async (req, res) => {
+    try {
+        const { groupId, userId } = req.params;
+        const currentUser = req.user;
+
+        const group = await Group.findById(groupId);
+        if (!group) {
+            return res.status(404).json({ msg: 'Group not found' });
+        }
+
+        await group.removeMember(userId);
+
+        // Remove group reference from user
+        const user = await User.findById(userId);
+        if (user) {
+            if (group.type === 'ADMIN') {
+                user.adminGroup = undefined;
+            } else {
+                user.unitManagerGroup = undefined;
+            }
+            await user.save();
+        }
+
+        res.json({ msg: 'Member removed successfully', group });
+    } catch (err) {
+        console.error("Error removing member:", err);
+        res.status(500).json({ msg: 'Server error' });
+    }
+};
+
+// GET /api/groups/:groupId/visible-users
+exports.getVisibleUsers = async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        const currentUser = req.user;
+
+        const group = await Group.findById(groupId);
+        if (!group) {
+            return res.status(404).json({ msg: 'Group not found' });
+        }
+
+        let visibleUsers;
+        if (group.type === 'ADMIN') {
+            visibleUsers = await group.getVisibleUsers();
+        } else {
+            visibleUsers = await group.getVisibleUsersForUnitManager();
+        }
+
+        res.json({ visibleUsers });
+    } catch (err) {
+        console.error("Error getting visible users:", err);
         res.status(500).json({ msg: 'Server error' });
     }
 }; 

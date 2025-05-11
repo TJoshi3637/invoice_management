@@ -28,32 +28,39 @@ const groupSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  permissions: {
-    createUsers: { type: Boolean, default: false },
-    deleteUsers: { type: Boolean, default: false },
-    editUsers: { type: Boolean, default: false },
-    viewAllUsers: { type: Boolean, default: false },
-    manageRoles: { type: Boolean, default: false },
-    systemSettings: { type: Boolean, default: false }
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
+  // For Admin groups to track which Unit Managers they can see
+  visibleUnitManagers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  // For Unit Manager groups to track which Users they can see
+  visibleUsers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }]
 }, { timestamps: true });
 
-// Pre-save middleware to ensure PRIMARY_ADMIN_GROUP always has all permissions
-groupSchema.pre('save', function (next) {
-  if (this.name === 'PRIMARY_ADMIN_GROUP') {
-    Object.keys(this.permissions).forEach(key => {
-      this.permissions[key] = true;
-    });
+// Pre-save middleware to validate group type based on creator's role
+groupSchema.pre('save', async function (next) {
+  try {
+    const creator = await mongoose.model('User').findById(this.createdBy);
+
+    if (!creator) {
+      throw new Error('Creator not found');
+    }
+
+    if (this.type === 'ADMIN' && creator.role !== 'SUPER_ADMIN') {
+      throw new Error('Only Super Admin can create admin groups');
+    }
+
+    if (this.type === 'UNIT_MANAGER' && creator.role !== 'ADMIN') {
+      throw new Error('Only Admin can create unit manager groups');
+    }
+
+    next();
+  } catch (error) {
+    next(error);
   }
-  next();
 });
 
 // Method to add a member to the group
@@ -73,6 +80,45 @@ groupSchema.methods.removeMember = async function (userId) {
 // Method to check if a user is a member of the group
 groupSchema.methods.hasMember = function (userId) {
   return this.members.some(member => member.toString() === userId.toString());
+};
+
+// Method to add visible users/unit managers
+groupSchema.methods.addVisibleUser = async function (userId) {
+  if (!this.visibleUsers.includes(userId)) {
+    this.visibleUsers.push(userId);
+    await this.save();
+  }
+};
+
+groupSchema.methods.addVisibleUnitManager = async function (unitManagerId) {
+  if (!this.visibleUnitManagers.includes(unitManagerId)) {
+    this.visibleUnitManagers.push(unitManagerId);
+    await this.save();
+  }
+};
+
+// Method to get all visible users for an admin group
+groupSchema.methods.getVisibleUsers = async function () {
+  await this.populate('visibleUnitManagers');
+  const unitManagerIds = this.visibleUnitManagers.map(um => um._id);
+
+  const User = mongoose.model('User');
+  return await User.find({
+    createdBy: { $in: unitManagerIds },
+    role: 'USER'
+  });
+};
+
+// Method to get all visible users for a unit manager group
+groupSchema.methods.getVisibleUsersForUnitManager = async function () {
+  await this.populate('members');
+  const memberIds = this.members.map(member => member._id);
+
+  const User = mongoose.model('User');
+  return await User.find({
+    createdBy: { $in: memberIds },
+    role: 'USER'
+  });
 };
 
 const Group = mongoose.model('Group', groupSchema);

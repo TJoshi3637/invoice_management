@@ -107,13 +107,30 @@ export const updateUser = async (userId, userData) => {
 // Delete user
 export const deleteUser = async (userId) => {
     try {
-        const response = await api.delete(
-            API_CONFIG.USERS.DELETE.replace(':userId', userId)
-        );
+        console.log('Attempting to delete user:', userId);
+        const url = API_CONFIG.USERS.DELETE.replace(':userId', userId);
+        console.log('Delete URL:', url);
+
+        const response = await api.delete(url);
+        console.log('User deletion response:', response.data);
         return response.data;
     } catch (error) {
-        console.error('Error deleting user:', error);
-        throw error.response?.data || { msg: 'Failed to delete user' };
+        console.error('Error deleting user:', {
+            message: error.message,
+            response: error.response?.data,
+            status: error.response?.status,
+            userId,
+            url: API_CONFIG.USERS.DELETE.replace(':userId', userId),
+            stack: error.stack
+        });
+
+        // Throw a more detailed error
+        throw {
+            msg: error.response?.data?.msg || 'Failed to delete user',
+            details: error.response?.data?.error || error.message,
+            status: error.response?.status,
+            userId
+        };
     }
 };
 

@@ -9,14 +9,21 @@ const userSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
+  username: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+    minlength: 3
+  },
   name: {
     type: String,
-    required: [true, 'Name is required'],
+    required: true,
     trim: true
   },
   email: {
     type: String,
-    required: [true, 'Email is required'],
+    required: true,
     unique: true,
     trim: true,
     lowercase: true,
@@ -24,8 +31,8 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters long']
+    required: true,
+    minlength: 6
   },
   role: {
     type: String,
@@ -33,29 +40,13 @@ const userSchema = new mongoose.Schema({
     enum: ['SUPER_ADMIN', 'ADMIN', 'UNIT_MANAGER', 'USER'],
     default: 'USER'
   },
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  groups: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Group'
-  }],
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  adminGroup: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'AdminGroup'
-  },
-  unitManagerGroup: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'UnitManagerGroup'
+  group: {
+    type: String,
+    default: null
   },
   timezone: {
     type: String,
-    required: true,
+    required: false,
     default: 'UTC',
     validate: {
       validator: function (v) {
@@ -68,6 +59,18 @@ const userSchema = new mongoose.Schema({
       },
       message: props => `${props.value} is not a valid timezone`
     }
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  groups: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Group'
+  }],
+  isActive: {
+    type: Boolean,
+    default: true
   }
 }, { timestamps: true });
 

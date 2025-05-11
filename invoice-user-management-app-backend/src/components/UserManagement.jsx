@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Select, Button, message, Table, Spin } from 'antd';
-import { createUser, getUsers } from '../api/userService';
+import { Form, Input, Select, Button, message, Table, Spin, Popconfirm } from 'antd';
+import { createUser, getUsers, deleteUser } from '../api/userService';
 
 const { Option } = Select;
 
@@ -9,12 +9,22 @@ const UserManagement = () => {
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState([]);
     const [tableLoading, setTableLoading] = useState(false);
+    const [pagination, setPagination] = useState({
+        current: 1,
+        pageSize: 10,
+        total: 0
+    });
 
     const columns = [
         {
             title: 'User ID',
             dataIndex: 'userId',
             key: 'userId',
+        },
+        {
+            title: 'Username',
+            dataIndex: 'username',
+            key: 'username',
         },
         {
             title: 'Name',
@@ -35,19 +45,43 @@ const UserManagement = () => {
             title: 'Timezone',
             dataIndex: 'timezone',
             key: 'timezone',
+        },
+        {
+            title: 'Actions',
+            key: 'actions',
+            render: (_, record) => (
+                <Popconfirm
+                    title="Are you sure you want to delete this user?"
+                    onConfirm={() => handleDeleteUser(record.userId)}
+                    okText="Yes"
+                    cancelText="No"
+                >
+                    <Button type="link" danger>
+                        Delete
+                    </Button>
+                </Popconfirm>
+            ),
         }
     ];
 
-    const fetchUsers = async () => {
+    const fetchUsers = async (page = 1, pageSize = 10) => {
         setTableLoading(true);
         try {
-            const response = await getUsers();
+            const response = await getUsers(page, pageSize);
+            console.log('Users response:', response);
+
             // Ensure each user object has a unique key
             const usersWithKeys = (response.users || []).map(user => ({
                 ...user,
                 key: user.userId // Use userId as the unique key
             }));
+
             setUsers(usersWithKeys);
+            setPagination({
+                current: parseInt(response.currentPage) || page,
+                pageSize: pageSize,
+                total: (parseInt(response.totalPages) || 1) * pageSize
+            });
         } catch (err) {
             console.error('Error fetching users:', err);
             message.error('Failed to fetch users');
@@ -57,8 +91,8 @@ const UserManagement = () => {
     };
 
     useEffect(() => {
-        fetchUsers();
-    }, []);
+        fetchUsers(pagination.current, pagination.pageSize);
+    }, [pagination.current, pagination.pageSize]);
 
     const handleCreateUser = async (values) => {
         try {
@@ -105,6 +139,18 @@ const UserManagement = () => {
         }
     };
 
+    const handleDeleteUser = async (userId) => {
+        try {
+            console.log('Deleting user:', userId);
+            await deleteUser(userId);
+            message.success('User deleted successfully');
+            fetchUsers(); // Refresh the user list
+        } catch (error) {
+            console.error('Error deleting user:', error);
+            message.error(error.msg || 'Failed to delete user');
+        }
+    };
+
     return (
         <div className="container mx-auto px-4 py-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -122,6 +168,17 @@ const UserManagement = () => {
                                 name="name"
                                 label="Name"
                                 rules={[{ required: true, message: 'Please enter name' }]}
+                            >
+                                <Input />
+                            </Form.Item>
+
+                            <Form.Item
+                                name="username"
+                                label="Username"
+                                rules={[
+                                    { required: true, message: 'Please enter username' },
+                                    { min: 3, message: 'Username must be at least 3 characters' }
+                                ]}
                             >
                                 <Input />
                             </Form.Item>
@@ -202,9 +259,16 @@ const UserManagement = () => {
                                 columns={columns}
                                 rowKey="userId"
                                 pagination={{
-                                    pageSize: 10,
+                                    ...pagination,
                                     showSizeChanger: true,
-                                    showTotal: (total) => `Total ${total} users`
+                                    showTotal: (total) => `Total ${total} users`,
+                                    onChange: (page, pageSize) => {
+                                        setPagination(prev => ({
+                                            ...prev,
+                                            current: page,
+                                            pageSize
+                                        }));
+                                    }
                                 }}
                             />
                         </Spin>

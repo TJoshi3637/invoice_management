@@ -8,8 +8,11 @@ const API_CONFIG = {
             CURRENT_USER: '/api/auth/current-user'
         },
         USERS: {
-            CREATE: '/api/users/create',
-            LIST: '/api/users'
+            CREATE: '/api/users',
+            LIST: '/api/users',
+            UPDATE: '/api/users/:userId',
+            DELETE: '/api/users/:userId',
+            GET_BY_ID: '/api/users/:userId'
         }
     }
 };

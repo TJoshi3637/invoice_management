@@ -29,14 +29,14 @@ api.interceptors.request.use(
 // Add response interceptor for logging
 api.interceptors.response.use(
     (response) => {
-        console.log('Response received:', {
-            status: response.status,
-            data: response.data
-        });
+        console.log('Response from:', response.config.url);
+        console.log('Response status:', response.status);
+        console.log('Response data:', JSON.stringify(response.data, null, 2));
         return response;
     },
     (error) => {
         console.error('Response error:', {
+            url: error.config?.url,
             message: error.message,
             status: error.response?.status,
             data: error.response?.data
