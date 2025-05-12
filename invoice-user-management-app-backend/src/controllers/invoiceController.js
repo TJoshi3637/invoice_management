@@ -24,13 +24,47 @@ exports.getInvoices = async (req, res) => {
   try {
     const { financialYear, startDate, endDate } = req.query;
 
-    const query = { financialYear };
+    const matchStage = { financialYear };
 
     if (startDate && endDate) {
-      query.invoiceDate = { $gte: new Date(startDate), $lte: new Date(endDate) };
+      matchStage.invoiceDate = { $gte: new Date(startDate), $lte: new Date(endDate) };
     }
 
-    const invoices = await Invoice.find(query);
+    // Use aggregation pipeline with proper date parsing
+    const invoices = await Invoice.aggregate([
+      { $match: matchStage },
+      {
+        $addFields: {
+          // Parse the date string into a proper date object
+          parsedDate: {
+            $dateFromString: {
+              dateString: { $toString: "$invoiceDate" },
+              format: "%Y-%m-%dT%H:%M:%S.%LZ"
+            }
+          }
+        }
+      },
+      {
+        $sort: { parsedDate: -1 } // Sort by parsed date in descending order
+      },
+      {
+        $project: {
+          _id: 1,
+          invoiceNumber: 1,
+          invoiceAmount: 1,
+          financialYear: 1,
+          createdBy: 1,
+          invoiceDate: { $toString: "$parsedDate" }
+        }
+      }
+    ]);
+
+    // Log the first few invoices to verify sorting
+    console.log('First few invoices after sorting:');
+    invoices.slice(0, 3).forEach(invoice => {
+      console.log(`Invoice ${invoice.invoiceNumber}: ${invoice.invoiceDate}`);
+    });
+
     res.json(invoices);
   } catch (error) {
     console.error('Error fetching invoices:', error);

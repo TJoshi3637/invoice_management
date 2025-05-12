@@ -13,6 +13,7 @@ export default function InvoiceManagement() {
     const [totalPages, setTotalPages] = useState(1);
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(true);
+    const [sortOrder, setSortOrder] = useState('desc');
 
     // Form states
     const [formData, setFormData] = useState({
@@ -50,26 +51,26 @@ export default function InvoiceManagement() {
         try {
             setIsLoading(true);
             const response = await api.get(`/invoices?page=${pageNum}&limit=10`);
-            
+
             // Handle different response formats
+            let invoiceData = [];
             if (Array.isArray(response.data)) {
-                // If response is an array, set it directly
-                setInvoices(response.data);
-                setTotalPages(1); // Default to 1 if no pagination info
+                invoiceData = response.data;
             } else if (response.data && response.data.invoices) {
-                // If response is an object with invoices property
-                setInvoices(response.data.invoices);
-                setTotalPages(response.data.totalPages || 1);
+                invoiceData = response.data.invoices;
             } else if (response.data && Array.isArray(response.data.data)) {
-                // Handle another common API format
-                setInvoices(response.data.data);
-                setTotalPages(response.data.meta?.total_pages || 1);
-            } else {
-                // Fallback for unknown formats
-                console.log('API Response Format:', response.data);
-                setInvoices([]);
-                setError('No invoices found or unknown response format');
+                invoiceData = response.data.data;
             }
+
+            // Sort invoices by date
+            invoiceData.sort((a, b) => {
+                const dateA = new Date(a.invoiceDate || a.date);
+                const dateB = new Date(b.invoiceDate || b.date);
+                return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+            });
+
+            setInvoices(invoiceData);
+            setTotalPages(response.data.totalPages || 1);
         } catch (error) {
             console.error('Error fetching invoices:', error);
             setError('Error loading invoices. Please try again.');
@@ -88,7 +89,7 @@ export default function InvoiceManagement() {
                 fetchInvoices(page);
             }
         }, 500);
-        
+
         return () => clearTimeout(delaySearch);
     }, [searchTerm, currentUser]);
 
@@ -96,25 +97,26 @@ export default function InvoiceManagement() {
         try {
             setIsLoading(true);
             const response = await api.get(`/invoices/search?term=${searchTerm}&page=${page}&limit=10`);
-            
+
             // Handle different response formats
+            let invoiceData = [];
             if (Array.isArray(response.data)) {
-                // If response is an array, set it directly
-                setInvoices(response.data);
-                setTotalPages(1); // Default to 1 if no pagination info
+                invoiceData = response.data;
             } else if (response.data && response.data.invoices) {
-                // If response is an object with invoices property
-                setInvoices(response.data.invoices);
-                setTotalPages(response.data.totalPages || 1);
+                invoiceData = response.data.invoices;
             } else if (response.data && Array.isArray(response.data.data)) {
-                // Handle another common API format
-                setInvoices(response.data.data);
-                setTotalPages(response.data.meta?.total_pages || 1);
-            } else {
-                // Fallback for unknown formats
-                console.log('Search API Response Format:', response.data);
-                setInvoices([]);
+                invoiceData = response.data.data;
             }
+
+            // Sort invoices by date
+            invoiceData.sort((a, b) => {
+                const dateA = new Date(a.invoiceDate || a.date);
+                const dateB = new Date(b.invoiceDate || b.date);
+                return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+            });
+
+            setInvoices(invoiceData);
+            setTotalPages(response.data.totalPages || 1);
         } catch (error) {
             console.error('Error searching invoices:', error);
             setError('Error searching invoices. Please try again.');
@@ -132,37 +134,38 @@ export default function InvoiceManagement() {
     const handleFilter = (e) => {
         setSelectedFY(e.target.value);
         setPage(1); // Reset to first page when filtering
-        
+
         if (e.target.value) {
             filterByFinancialYear(e.target.value);
         } else {
             fetchInvoices(1);
         }
     };
-    
+
     const filterByFinancialYear = async (year) => {
         try {
             setIsLoading(true);
             const response = await api.get(`/invoices?financialYear=${year}&page=1&limit=10`);
-            
+
             // Handle different response formats
+            let invoiceData = [];
             if (Array.isArray(response.data)) {
-                // If response is an array, set it directly
-                setInvoices(response.data);
-                setTotalPages(1); // Default to 1 if no pagination info
+                invoiceData = response.data;
             } else if (response.data && response.data.invoices) {
-                // If response is an object with invoices property
-                setInvoices(response.data.invoices);
-                setTotalPages(response.data.totalPages || 1);
+                invoiceData = response.data.invoices;
             } else if (response.data && Array.isArray(response.data.data)) {
-                // Handle another common API format
-                setInvoices(response.data.data);
-                setTotalPages(response.data.meta?.total_pages || 1);
-            } else {
-                // Fallback for unknown formats
-                console.log('Filter API Response Format:', response.data);
-                setInvoices([]);
+                invoiceData = response.data.data;
             }
+
+            // Sort invoices by date
+            invoiceData.sort((a, b) => {
+                const dateA = new Date(a.invoiceDate || a.date);
+                const dateB = new Date(b.invoiceDate || b.date);
+                return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+            });
+
+            setInvoices(invoiceData);
+            setTotalPages(response.data.totalPages || 1);
         } catch (error) {
             console.error('Error filtering invoices:', error);
             setError('Error filtering invoices. Please try again.');
@@ -171,6 +174,19 @@ export default function InvoiceManagement() {
             setIsLoading(false);
         }
     };
+
+    // Add useEffect to handle sort order changes
+    useEffect(() => {
+        if (currentUser) {
+            if (searchTerm) {
+                handleSearchInvoices();
+            } else if (selectedFY) {
+                filterByFinancialYear(selectedFY);
+            } else {
+                fetchInvoices(page);
+            }
+        }
+    }, [sortOrder]);
 
     const handleCreate = async (e) => {
         e.preventDefault();
@@ -191,17 +207,17 @@ export default function InvoiceManagement() {
                 financialYear: formData.financialYear,
                 createdBy: currentUser.id
             };
-            
+
             // Log the data being sent to help with debugging
             console.log('Creating invoice with data:', apiData);
-            
+
             const response = await api.post('/invoices', apiData);
-            
+
             console.log('API response from create:', response);
-            
+
             // Refresh the invoices list after creating
             await fetchInvoices(page);
-            
+
             setShowCreateForm(false);
             setFormData({
                 invoiceNumber: '',
@@ -212,7 +228,7 @@ export default function InvoiceManagement() {
             });
         } catch (error) {
             console.error('Error creating invoice:', error);
-            
+
             // Enhanced error logging
             if (error.response) {
                 // The request was made and the server responded with a status code
@@ -220,13 +236,12 @@ export default function InvoiceManagement() {
                 console.error('Error response data:', error.response.data);
                 console.error('Error response status:', error.response.status);
                 console.error('Error response headers:', error.response.headers);
-                
-                setError(`Error creating invoice: ${error.response.status} - ${
-                    error.response.data?.message || 
-                    error.response.data?.error || 
-                    JSON.stringify(error.response.data) || 
+
+                setError(`Error creating invoice: ${error.response.status} - ${error.response.data?.message ||
+                    error.response.data?.error ||
+                    JSON.stringify(error.response.data) ||
                     'Unknown server error'
-                }`);
+                    }`);
             } else if (error.request) {
                 // The request was made but no response was received
                 console.error('Error request:', error.request);
@@ -262,18 +277,18 @@ export default function InvoiceManagement() {
                 description: formData.description,
                 financialYear: formData.financialYear
             };
-            
+
             // Log update data for debugging
             console.log('Updating invoice with ID:', selectedInvoice.id);
             console.log('Update data:', apiData);
-            
+
             const response = await api.put(`/invoices/${selectedInvoice.id}`, apiData);
-            
+
             console.log('API update response:', response);
-            
+
             // Refresh the invoices list after updating
             await fetchInvoices(page);
-            
+
             setShowUpdateForm(false);
             setSelectedInvoice(null);
             setFormData({
@@ -285,18 +300,17 @@ export default function InvoiceManagement() {
             });
         } catch (error) {
             console.error('Error updating invoice:', error);
-            
+
             // Enhanced error logging
             if (error.response) {
                 console.error('Error response data:', error.response.data);
                 console.error('Error response status:', error.response.status);
-                
-                setError(`Error updating invoice: ${error.response.status} - ${
-                    error.response.data?.message || 
-                    error.response.data?.error || 
-                    JSON.stringify(error.response.data) || 
+
+                setError(`Error updating invoice: ${error.response.status} - ${error.response.data?.message ||
+                    error.response.data?.error ||
+                    JSON.stringify(error.response.data) ||
                     'Unknown server error'
-                }`);
+                    }`);
             } else if (error.request) {
                 console.error('Error request:', error.request);
                 setError('Network error: No response received from server');
@@ -316,26 +330,25 @@ export default function InvoiceManagement() {
         if (window.confirm('Are you sure you want to delete this invoice?')) {
             try {
                 console.log('Deleting invoice with ID:', id);
-                
+
                 const response = await api.delete(`/invoices/${id}`);
                 console.log('Delete response:', response);
-                
+
                 // Refresh the invoices list after deleting
                 await fetchInvoices(page);
             } catch (error) {
                 console.error('Error deleting invoice:', error);
-                
+
                 // Enhanced error logging
                 if (error.response) {
                     console.error('Error response data:', error.response.data);
                     console.error('Error response status:', error.response.status);
-                    
-                    setError(`Error deleting invoice: ${error.response.status} - ${
-                        error.response.data?.message || 
-                        error.response.data?.error || 
-                        JSON.stringify(error.response.data) || 
+
+                    setError(`Error deleting invoice: ${error.response.status} - ${error.response.data?.message ||
+                        error.response.data?.error ||
+                        JSON.stringify(error.response.data) ||
                         'Unknown server error'
-                    }`);
+                        }`);
                 } else if (error.request) {
                     console.error('Error request:', error.request);
                     setError('Network error: No response received from server');
@@ -447,14 +460,14 @@ export default function InvoiceManagement() {
                             </select>
                         </div>
                         <div className="form-actions" style={{ display: 'flex', gap: '10px' }}>
-                            <button 
+                            <button
                                 type="submit"
                                 style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                             >
                                 Create
                             </button>
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 onClick={() => setShowCreateForm(false)}
                                 style={{ padding: '8px 16px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                             >
@@ -521,14 +534,14 @@ export default function InvoiceManagement() {
                             </select>
                         </div>
                         <div className="form-actions" style={{ display: 'flex', gap: '10px' }}>
-                            <button 
+                            <button
                                 type="submit"
                                 style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                             >
                                 Update
                             </button>
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 onClick={() => {
                                     setShowUpdateForm(false);
                                     setSelectedInvoice(null);
@@ -553,7 +566,15 @@ export default function InvoiceManagement() {
                 <thead>
                     <tr style={{ backgroundColor: '#f2f2f2' }}>
                         <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Invoice Number</th>
-                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Date</th>
+                        <th
+                            style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', cursor: 'pointer' }}
+                            onClick={() => {
+                                setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+                                fetchInvoices(page);
+                            }}
+                        >
+                            Date {sortOrder === 'desc' ? '↓' : '↑'}
+                        </th>
                         <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Amount</th>
                         <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Description</th>
                         <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Financial Year</th>
@@ -572,7 +593,7 @@ export default function InvoiceManagement() {
                                 <td style={{ padding: '12px' }}>{invoice.financialYear}</td>
                                 <td style={{ padding: '12px' }}>{invoice.createdBy}</td>
                                 <td style={{ padding: '12px' }}>
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             setSelectedInvoice(invoice);
                                             setFormData({
@@ -584,27 +605,27 @@ export default function InvoiceManagement() {
                                             });
                                             setShowUpdateForm(true);
                                         }}
-                                        style={{ 
-                                            marginRight: '5px', 
-                                            padding: '5px 10px', 
-                                            backgroundColor: '#007bff', 
-                                            color: 'white', 
-                                            border: 'none', 
-                                            borderRadius: '4px', 
-                                            cursor: 'pointer' 
+                                        style={{
+                                            marginRight: '5px',
+                                            padding: '5px 10px',
+                                            backgroundColor: '#007bff',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer'
                                         }}
                                     >
                                         Edit
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => handleDelete(invoice.id)}
-                                        style={{ 
-                                            padding: '5px 10px', 
-                                            backgroundColor: '#dc3545', 
-                                            color: 'white', 
-                                            border: 'none', 
-                                            borderRadius: '4px', 
-                                            cursor: 'pointer' 
+                                        style={{
+                                            padding: '5px 10px',
+                                            backgroundColor: '#dc3545',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer'
                                         }}
                                     >
                                         Delete
