@@ -22,13 +22,16 @@ A secure and user-role-based Invoice Management System built using **Node.js**, 
 ## 🖥️ Screenshots
 
 ### 🔐 Login
-![Login]("C:\Users\TUSHAR\OneDrive\Pictures\Screenshots\Screenshot 2025-07-23 111728.png")
+![Login]<img width="1090" height="792" alt="Screenshot 2025-07-23 111728" src="https://github.com/user-attachments/assets/3db2486a-384e-4445-97b2-7868cdc06929" />
+
 
 ### 📊 Dashboard
-![Dashboard]("C:\Users\TUSHAR\OneDrive\Pictures\Screenshots\Screenshot 2025-07-23 111708.png")
+![Dashboard]<img width="1914" height="804" alt="Screenshot 2025-07-23 111708" src="https://github.com/user-attachments/assets/5466281d-3b24-4405-b383-304a36ec21ad" />
+
 
 ### ➕ Create User with Role Selection
-![Create User]("C:\Users\TUSHAR\OneDrive\Pictures\Screenshots\Screenshot 2025-07-23 111751.png")
+![Create User]<img width="1914" height="802" alt="Screenshot 2025-07-23 111751" src="https://github.com/user-attachments/assets/2db9df2a-5976-4391-a637-a30118db71ae" />
+
 
 ---
 
